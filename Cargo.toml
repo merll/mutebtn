@@ -1,0 +1,12 @@
+[package]
+name = "mutebtn"
+version = "0.1.0"
+authors = ["Matthias Erll <matthias@erll.de>"]
+edition = "2018"
+
+[dependencies]
+signal-hook = "0.3.9"
+crossbeam-channel = "0.5"
+hidapi = "1.2.6"
+rust-pulsectl-fork = { git = "https://github.com/merll/pulsectl/", branch = "fix-source-mute" }
+clap = "2.33.3"
