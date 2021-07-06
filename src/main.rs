@@ -12,7 +12,7 @@ use std::{thread, time::Duration};
 
 use crate::muteme::{
     get_color_by_name, get_color_value, get_operation_mode_by_name, ControlMessage, DeviceEvent,
-    ExecMessage, OperationMode,
+    ExecMessage, IntMessage, OperationMode,
 };
 use crate::pulse::{AudioMessage, Mute, PulseControl};
 
@@ -27,13 +27,14 @@ fn main() -> Result<(), HidError> {
         (@arg unmuted_color: --("unmuted-color") +takes_value
          default_value[green] possible_value[red green blue yellow cyan purple white nocolor]
          "Sets the color when not muted")
-        (@arg operation_mode: -o --mode +takes_value
+        (@arg operation_mode: -m --mode +takes_value
          default_value[toggle] possible_value[toggle pushtotalk]
          "Sets the operation mode")
     )
     .get_matches();
 
     let (ctrl_sender, ctrl_receiver) = unbounded();
+    let (int_sender, int_receiver) = unbounded();
     let (exec_sender, exec_receiver) = unbounded();
     let (audio_sender, audio_receiver) = unbounded();
 
@@ -57,6 +58,7 @@ fn main() -> Result<(), HidError> {
                 Err(RecvError) => terminated = true,
             }
         }
+        println!("Shutting down audio thread");
     });
 
     let ctrl_exec_sender = exec_sender.clone();
@@ -96,24 +98,25 @@ fn main() -> Result<(), HidError> {
                     transition = false;
                 }
                 Ok(ControlMessage::Event(event)) => {
-                    let prev_state = is_muted.clone();
+                    let new_state;
                     match event {
                         DeviceEvent::Touch => {
                             println!("Touch event");
                             match op_mode {
-                                OperationMode::PushToTalk => is_muted = false,
-                                OperationMode::Toggle => {}
+                                OperationMode::PushToTalk => new_state = false,
+                                OperationMode::Toggle => new_state = is_muted,
                             }
                         }
                         DeviceEvent::Release => {
                             println!("Release event");
                             match op_mode {
-                                OperationMode::PushToTalk => is_muted = true,
-                                OperationMode::Toggle => is_muted = !is_muted,
+                                OperationMode::PushToTalk => new_state = true,
+                                OperationMode::Toggle => new_state = !is_muted,
                             }
                         }
                     };
-                    if is_muted != prev_state {
+                    if is_muted != new_state {
+                        is_muted = new_state;
                         transition = false;
                     }
                 }
@@ -156,10 +159,18 @@ fn main() -> Result<(), HidError> {
         }
     });
     let int_exec_sender = exec_sender.clone();
-    let int_thread = thread::spawn(move || loop {
-        match int_exec_sender.send(ExecMessage::ReadInterrupt) {
-            Err(_) => break,
-            _ => thread::sleep(Duration::from_millis(500)),
+    let int_thread = thread::spawn(move || {
+        let mut terminated = false;
+        while !terminated {
+            int_exec_sender
+                .send(ExecMessage::ReadInterrupt)
+                .unwrap_or(());
+            let res = int_receiver.recv_timeout(Duration::from_millis(200));
+            match res {
+                Ok(IntMessage::Terminate) => terminated = true,
+                Err(RecvTimeoutError::Disconnected) => terminated = true,
+                Err(RecvTimeoutError::Timeout) => continue,
+            }
         }
     });
     let exec_ctrl_sender = ctrl_sender.clone();
@@ -218,16 +229,17 @@ fn main() -> Result<(), HidError> {
     thread::spawn(move || {
         for sig in signals.forever() {
             println!("Received signal {:?}", sig);
-            audio_sender.send(AudioMessage::Terminate).unwrap_or(());
+            int_sender.send(IntMessage::Terminate).unwrap_or(());
             ctrl_sender.send(ControlMessage::Terminate).unwrap_or(());
             exec_sender.send(ExecMessage::Terminate).unwrap_or(());
+            audio_sender.send(AudioMessage::Terminate).unwrap_or(());
         }
     });
 
     int_thread.join().unwrap();
-    audio_thread.join().unwrap();
     ctrl_thread.join().unwrap();
     exec_thread.join().unwrap();
+    audio_thread.join().unwrap();
     handle.close();
 
     Ok(())

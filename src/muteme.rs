@@ -30,6 +30,9 @@ pub enum ControlMessage {
     Event(DeviceEvent),
     Terminate,
 }
+pub enum IntMessage {
+    Terminate,
+}
 pub enum ExecMessage {
     SetReport(u8),
     ReadInterrupt,
