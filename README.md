@@ -1,6 +1,6 @@
 # MuteBtn
 
-Connects mute hardware buttons to apps
+Connects mute controllers such as MuteMe™ to apps
 
 ## Supported environments
 

@@ -1,4 +1,3 @@
-
 use pulsectl::controllers::{DeviceControl, SourceController};
 
 #[derive(Debug)]
@@ -26,7 +25,8 @@ impl PulseControl {
 
 impl Mute for PulseControl {
     fn is_muted(&mut self) -> bool {
-        let devices = &self.handler
+        let devices = &self
+            .handler
             .list_devices()
             .expect("Could not get list of recording devices");
         for dev in devices.clone() {
@@ -36,13 +36,14 @@ impl Mute for PulseControl {
         }
         true
     }
-        
+
     fn set_muted(&mut self, muted: bool) -> () {
-        let devices = &self.handler
+        let devices = &self
+            .handler
             .list_devices()
             .expect("Could not get list of recording devices");
         for dev in devices.clone() {
             &self.handler.set_device_mute_by_index(dev.index, muted);
         }
     }
-} 
+}
