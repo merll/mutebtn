@@ -58,7 +58,6 @@ fn main() -> Result<(), HidError> {
                 Err(RecvError) => terminated = true,
             }
         }
-        println!("Shutting down audio thread");
     });
 
     let ctrl_exec_sender = exec_sender.clone();
