@@ -10,3 +10,5 @@ crossbeam-channel = "0.5"
 hidapi = "1.2.6"
 rust-pulsectl-fork = { git = "https://github.com/merll/pulsectl/", branch = "fix-source-mute" }
 clap = "2.33.3"
+config = "0.11.0"
+serde = { version = "1.0.126", features = ["derive"] }

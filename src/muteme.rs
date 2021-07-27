@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 pub const DEVICE_VID: u16 = 0x20a0;
 pub const DEVICE_PID: u16 = 0x42da;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Color {
     Red,
     Green,
@@ -12,7 +15,22 @@ pub enum Color {
     White,
     NoColor,
 }
-#[derive(Debug)]
+impl Color {
+    pub fn get_byte_value(&self) -> u8 {
+        match self {
+            Self::Red => 0x01,
+            Self::Green => 0x02,
+            Self::Blue => 0x04,
+            Self::Yellow => 0x03,
+            Self::Cyan => 0x06,
+            Self::Purple => 0x05,
+            Self::White => 0x07,
+            Self::NoColor => 0x00,
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum OperationMode {
     Toggle,
     PushToTalk,
@@ -38,35 +56,19 @@ pub enum ExecMessage {
     ReadInterrupt,
     Terminate,
 }
-
-pub fn get_color_by_name(name: &str) -> Color {
-    match name {
-        "red" => Color::Red,
-        "green" => Color::Green,
-        "blue" => Color::Blue,
-        "yellow" => Color::Yellow,
-        "cyan" => Color::Cyan,
-        "purple" => Color::Purple,
-        "white" => Color::White,
-        _ => Color::NoColor,
-    }
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MuteMeSettings {
+    pub muted_color: Color,
+    pub unmuted_color: Color,
+    pub operation_mode: OperationMode,
 }
-pub fn get_operation_mode_by_name(name: &str) -> OperationMode {
-    match name {
-        "toggle" => OperationMode::Toggle,
-        "pushtotalk" => OperationMode::PushToTalk,
-        _ => OperationMode::Toggle,
-    }
-}
-pub fn get_color_value(color: &Color) -> u8 {
-    match color {
-        Color::Red => 0x01,
-        Color::Green => 0x02,
-        Color::Blue => 0x04,
-        Color::Yellow => 0x03,
-        Color::Cyan => 0x06,
-        Color::Purple => 0x05,
-        Color::White => 0x07,
-        Color::NoColor => 0x00,
+impl Default for MuteMeSettings {
+    fn default() -> Self {
+        Self {
+            muted_color: Color::Red,
+            unmuted_color: Color::Green,
+            operation_mode: OperationMode::Toggle,
+        }
     }
 }

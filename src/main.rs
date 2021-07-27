@@ -1,26 +1,93 @@
 mod muteme;
 mod pulse;
 
-use clap::clap_app;
+use clap::{clap_app, ArgMatches};
+use config::{Config, ConfigError, File};
 use crossbeam_channel::{unbounded, RecvError, RecvTimeoutError};
 use hidapi::{HidDevice, HidError};
+use pulse::PulseSettings;
+use serde::{Deserialize, Serialize};
 use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,
 };
-use std::{thread, time::Duration};
+use std::{path::Path, thread, time::Duration};
 
 use crate::muteme::{
-    get_color_by_name, get_color_value, get_operation_mode_by_name, ControlMessage, DeviceEvent,
-    ExecMessage, IntMessage, OperationMode,
+    ControlMessage, DeviceEvent, ExecMessage, IntMessage, MuteMeSettings, OperationMode,
 };
 use crate::pulse::{AudioMessage, Mute, PulseControl};
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+struct MainSettings {
+    mute_on_startup: Option<bool>,
+}
+impl Default for MainSettings {
+    fn default() -> Self {
+        Self {
+            mute_on_startup: None,
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+struct Settings {
+    main: MainSettings,
+    muteme: MuteMeSettings,
+    pulse: PulseSettings,
+}
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            main: MainSettings::default(),
+            muteme: MuteMeSettings::default(),
+            pulse: PulseSettings::default(),
+        }
+    }
+}
+impl Settings {
+    pub fn new(arg_matches: &ArgMatches) -> Result<Self, ConfigError> {
+        let defaults = Settings::default();
+        let mut s = Config::try_from(&defaults)?;
+        let config_file = match arg_matches.value_of("config_file") {
+            Some(file_name) => Some(file_name),
+            None => {
+                if Path::new("mutebtn").is_file() {
+                    Some("mutebtn.toml")
+                } else if Path::new("/etc/mutebtn").is_file() {
+                    Some("/etc/mutebtn.toml")
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(file_name) = config_file {
+            println!("Using configuration file {}", file_name);
+            s.merge(File::with_name(file_name))?;
+        }
+        for settings_key in vec!["muted_color", "unmuted_color", "operation_mode"] {
+            let set_in_config = if let Ok(_) = s.get_str(&settings_key) {
+                true
+            } else {
+                false
+            };
+            if arg_matches.occurrences_of(&settings_key) > 0 || !set_in_config {
+                let config_key = format!("muteme.{}", &settings_key);
+                s.set(&config_key, arg_matches.value_of(&settings_key).unwrap())?;
+            }
+        }
+        s.try_into()
+    }
+}
+
 fn main() -> Result<(), HidError> {
-    let matches = clap_app!(mutebtn =>
+    let app = clap_app!(mutebtn =>
         (version: "0.1.0")
         (author: "Matthias Erll <matthias@erll.de>")
         (about: "Connects the MuteMe Button")
+        (@arg config_file: -c --config +takes_value
+         "Sets a configuration file name (optional - default is ./mutebtn or /etc/mutebtn)")
         (@arg muted_color: --("muted-color") +takes_value
          default_value[red] possible_value[red green blue yellow cyan purple white nocolor]
          "Sets the color when muted")
@@ -30,8 +97,16 @@ fn main() -> Result<(), HidError> {
         (@arg operation_mode: -m --mode +takes_value
          default_value[toggle] possible_value[toggle pushtotalk]
          "Sets the operation mode")
-    )
-    .get_matches();
+    );
+    let matches = app.get_matches();
+    let mut settings;
+    match Settings::new(&matches) {
+        Ok(s) => settings = s,
+        Err(err) => {
+            println!("{}", err);
+            settings = Settings::default();
+        }
+    }
 
     let (ctrl_sender, ctrl_receiver) = unbounded();
     let (int_sender, int_receiver) = unbounded();
@@ -59,18 +134,14 @@ fn main() -> Result<(), HidError> {
             }
         }
     });
+    println!("{:?}", &settings);
 
     let ctrl_exec_sender = exec_sender.clone();
     let ctrl_audio_sender = audio_sender.clone();
     let ctrl_self_sender = ctrl_sender.clone();
     let ctrl_thread = thread::spawn(move || -> () {
         let mut terminated = false;
-        let mut muted_color = get_color_by_name(matches.value_of("muted_color").unwrap_or("red"));
-        let mut unmuted_color =
-            get_color_by_name(matches.value_of("unmuted_color").unwrap_or("green"));
         let mut is_muted = false;
-        let mut op_mode =
-            get_operation_mode_by_name(matches.value_of("operation_mode").unwrap_or("toggle"));
         let mut transition = false;
         thread::sleep(Duration::from_millis(100));
 
@@ -85,14 +156,14 @@ fn main() -> Result<(), HidError> {
                 }
                 Ok(ControlMessage::SetColor(mute_state, color)) => {
                     if mute_state {
-                        muted_color = color;
+                        settings.muteme.muted_color = color;
                     } else {
-                        unmuted_color = color;
+                        settings.muteme.unmuted_color = color;
                     }
                     transition = false;
                 }
                 Ok(ControlMessage::SetMode(new_mode)) => {
-                    op_mode = new_mode;
+                    settings.muteme.operation_mode = new_mode;
                     is_muted = true;
                     transition = false;
                 }
@@ -101,14 +172,14 @@ fn main() -> Result<(), HidError> {
                     match event {
                         DeviceEvent::Touch => {
                             println!("Touch event");
-                            match op_mode {
+                            match &settings.muteme.operation_mode {
                                 OperationMode::PushToTalk => new_state = false,
                                 OperationMode::Toggle => new_state = is_muted,
                             }
                         }
                         DeviceEvent::Release => {
                             println!("Release event");
-                            match op_mode {
+                            match &settings.muteme.operation_mode {
                                 OperationMode::PushToTalk => new_state = true,
                                 OperationMode::Toggle => new_state = !is_muted,
                             }
@@ -129,9 +200,9 @@ fn main() -> Result<(), HidError> {
             }
 
             let current_color = if is_muted {
-                &muted_color
+                &settings.muteme.muted_color
             } else {
-                &unmuted_color
+                &settings.muteme.unmuted_color
             };
             let effect: u8;
             if transition {
@@ -151,7 +222,7 @@ fn main() -> Result<(), HidError> {
                 });
                 transition = true;
             }
-            let color_value = get_color_value(&current_color) + effect;
+            let color_value = &current_color.get_byte_value() + effect;
             ctrl_exec_sender
                 .send(ExecMessage::SetReport(color_value))
                 .unwrap_or(());

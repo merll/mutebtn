@@ -1,10 +1,30 @@
 use pulsectl::controllers::{DeviceControl, SourceController};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum AudioMessage {
     GetMuteStatus,
     SetMuteStatus(bool),
     Terminate,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PulseMuteDevice {
+    All,
+    Default,
+    Selected(String),
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PulseSettings {
+    pub mute_device: PulseMuteDevice,
+}
+impl Default for PulseSettings {
+    fn default() -> Self {
+        Self {
+            mute_device: PulseMuteDevice::All,
+        }
+    }
 }
 
 pub trait Mute {
@@ -17,9 +37,9 @@ pub struct PulseControl {
 }
 
 impl PulseControl {
-    pub fn new() -> PulseControl {
+    pub fn new() -> Self {
         let handler = SourceController::create().expect("Failed to get handler");
-        PulseControl { handler }
+        Self { handler }
     }
 }
 
