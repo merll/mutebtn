@@ -235,7 +235,7 @@ fn main() -> Result<(), HidError> {
             int_exec_sender
                 .send(ExecMessage::ReadInterrupt)
                 .unwrap_or(());
-            let res = int_receiver.recv_timeout(Duration::from_millis(200));
+            let res = int_receiver.recv_timeout(Duration::from_millis(50));
             match res {
                 Ok(IntMessage::Terminate) => terminated = true,
                 Err(RecvTimeoutError::Disconnected) => terminated = true,
