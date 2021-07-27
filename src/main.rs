@@ -279,14 +279,7 @@ fn main() -> Result<(), HidError> {
 
             let res = exec_receiver.recv();
             match res {
-                Ok(ExecMessage::SetReport(value)) => {
-                    let data = [0x00, value];
-                    let res = device.write(&data);
-                    match res {
-                        Ok(i) => println!("Wrote {} bytes", i),
-                        Err(err) => println!("{}", err),
-                    };
-                }
+                Ok(ExecMessage::SetReport(value)) => write_value(&device, value),
                 Ok(ExecMessage::ReadInterrupt) => continue,
                 Ok(ExecMessage::Terminate) => terminated = true,
                 Err(RecvError) => terminated = true,
@@ -315,15 +308,45 @@ fn main() -> Result<(), HidError> {
     Ok(())
 }
 
-fn read_interrupt(device: &HidDevice) -> Option<u8> {
-    let mut buf = [0u8; 8];
-    let res = device.read(&mut buf);
-    match res {
-        Ok(_i @ 0) => None,
-        Ok(_) => Some(buf[3]),
-        Err(err) => {
-            println!("{}", err);
-            None
+fn write_value(device: &HidDevice, value: u8) {
+    let data = [0x00, value];
+    let mut attempts = 3u8;
+    loop {
+        attempts -= 1;
+        let res = device.write(&data);
+        match res {
+            Ok(i) => {
+                println!("Wrote {} bytes", i);
+                break;
+            }
+            Err(err) => println!("{}", err),
+        };
+        if attempts > 0 {
+            thread::sleep(Duration::from_millis(10));
+        } else {
+            break;
         }
     }
+}
+
+fn read_interrupt(device: &HidDevice) -> Option<u8> {
+    let mut buf = [0u8; 8];
+    let mut attempts = 3u8;
+    loop {
+        attempts -= 1;
+        let res = device.read(&mut buf);
+        match res {
+            Ok(_i @ 0) => return None,
+            Ok(_) => return Some(buf[3]),
+            Err(err) => {
+                println!("{}", err);
+            }
+        }
+        if attempts > 0 {
+            thread::sleep(Duration::from_millis(10));
+        } else {
+            break;
+        }
+    }
+    None
 }
