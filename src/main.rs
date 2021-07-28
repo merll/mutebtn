@@ -48,8 +48,9 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn new(arg_matches: &ArgMatches) -> Result<Self, ConfigError> {
-        let defaults = Settings::default();
-        let mut s = Config::try_from(&defaults)?;
+        let mut s = Config::default();
+        let defaults = Config::try_from(&Settings::default())?;
+        s.merge(defaults)?;
         let config_file = match arg_matches.value_of("config_file") {
             Some(file_name) => Some(file_name),
             None => {
@@ -67,12 +68,7 @@ impl Settings {
             s.merge(File::with_name(file_name))?;
         }
         for settings_key in vec!["muted_color", "unmuted_color", "operation_mode"] {
-            let set_in_config = if let Ok(_) = s.get_str(&settings_key) {
-                true
-            } else {
-                false
-            };
-            if arg_matches.occurrences_of(&settings_key) > 0 || !set_in_config {
+            if arg_matches.occurrences_of(&settings_key) > 0 {
                 let config_key = format!("muteme.{}", &settings_key);
                 s.set(&config_key, arg_matches.value_of(&settings_key).unwrap())?;
             }
