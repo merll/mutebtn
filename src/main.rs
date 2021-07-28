@@ -95,7 +95,7 @@ fn main() -> Result<(), HidError> {
          "Sets the operation mode")
     );
     let matches = app.get_matches();
-    let mut settings;
+    let settings;
     match Settings::new(&matches) {
         Ok(s) => settings = s,
         Err(err) => {
@@ -103,16 +103,18 @@ fn main() -> Result<(), HidError> {
             settings = Settings::default();
         }
     }
+    println!("{:?}", &settings);
 
     let (ctrl_sender, ctrl_receiver) = unbounded();
     let (int_sender, int_receiver) = unbounded();
     let (exec_sender, exec_receiver) = unbounded();
     let (audio_sender, audio_receiver) = unbounded();
 
+    let pulse_settings = settings.pulse;
     let audio_ctrl_sender = ctrl_sender.clone();
     let audio_thread = thread::spawn(move || -> () {
         let mut terminated = false;
-        let mut pulse_control = PulseControl::new();
+        let mut pulse_control = PulseControl::new(pulse_settings);
         while !terminated {
             let res = audio_receiver.recv();
             match res {
@@ -130,8 +132,8 @@ fn main() -> Result<(), HidError> {
             }
         }
     });
-    println!("{:?}", &settings);
 
+    let mut muteme_settings = settings.muteme;
     let ctrl_exec_sender = exec_sender.clone();
     let ctrl_audio_sender = audio_sender.clone();
     let ctrl_self_sender = ctrl_sender.clone();
@@ -152,14 +154,14 @@ fn main() -> Result<(), HidError> {
                 }
                 Ok(ControlMessage::SetColor(mute_state, color)) => {
                     if mute_state {
-                        settings.muteme.muted_color = color;
+                        muteme_settings.muted_color = color;
                     } else {
-                        settings.muteme.unmuted_color = color;
+                        muteme_settings.unmuted_color = color;
                     }
                     transition = false;
                 }
                 Ok(ControlMessage::SetMode(new_mode)) => {
-                    settings.muteme.operation_mode = new_mode;
+                    muteme_settings.operation_mode = new_mode;
                     is_muted = true;
                     transition = false;
                 }
@@ -168,14 +170,14 @@ fn main() -> Result<(), HidError> {
                     match event {
                         DeviceEvent::Touch => {
                             println!("Touch event");
-                            match &settings.muteme.operation_mode {
+                            match muteme_settings.operation_mode {
                                 OperationMode::PushToTalk => new_state = false,
                                 OperationMode::Toggle => new_state = is_muted,
                             }
                         }
                         DeviceEvent::Release => {
                             println!("Release event");
-                            match &settings.muteme.operation_mode {
+                            match muteme_settings.operation_mode {
                                 OperationMode::PushToTalk => new_state = true,
                                 OperationMode::Toggle => new_state = !is_muted,
                             }
@@ -196,9 +198,9 @@ fn main() -> Result<(), HidError> {
             }
 
             let current_color = if is_muted {
-                &settings.muteme.muted_color
+                &muteme_settings.muted_color
             } else {
-                &settings.muteme.unmuted_color
+                &muteme_settings.unmuted_color
             };
             let effect: u8;
             if transition {
@@ -218,7 +220,7 @@ fn main() -> Result<(), HidError> {
                 });
                 transition = true;
             }
-            let color_value = &current_color.get_byte_value() + effect;
+            let color_value = current_color.get_byte_value() + effect;
             ctrl_exec_sender
                 .send(ExecMessage::SetReport(color_value))
                 .unwrap_or(());
