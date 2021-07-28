@@ -272,9 +272,10 @@ fn main() -> Result<(), HidError> {
                                 .unwrap_or(());
                         }
                     }
-                    Some(_) => continue,
+                    Some(_) => {},
                     None => break,
                 }
+                thread::yield_now();
             }
 
             let res = exec_receiver.recv();
