@@ -111,10 +111,14 @@ fn main() -> Result<(), HidError> {
     let (audio_sender, audio_receiver) = unbounded();
 
     let pulse_settings = settings.pulse;
+    let mute_on_startup = settings.main.mute_on_startup.clone();
     let audio_ctrl_sender = ctrl_sender.clone();
     let audio_thread = thread::spawn(move || -> () {
         let mut terminated = false;
         let mut pulse_control = PulseControl::new(pulse_settings);
+        if let Some(muted) = mute_on_startup {
+            pulse_control.set_muted(muted);
+        }
         while !terminated {
             let res = audio_receiver.recv();
             match res {
