@@ -141,7 +141,9 @@ fn main() -> Result<(), HidError> {
         let mut terminated = false;
         let mut is_muted = false;
         let mut transition = false;
-        thread::sleep(Duration::from_millis(100));
+        ctrl_audio_sender
+            .send(AudioMessage::GetMuteStatus)
+            .unwrap_or(());
 
         while !terminated {
             let res = ctrl_receiver.recv_timeout(Duration::from_secs(5));
