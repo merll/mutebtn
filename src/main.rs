@@ -61,7 +61,7 @@ impl Settings {
                 } else {
                     None
                 }
-            }
+            },
         };
         if let Some(file_name) = config_file {
             println!("Using configuration file {}", file_name);
@@ -101,7 +101,7 @@ fn main() -> Result<(), HidError> {
         Err(err) => {
             println!("{}", err);
             settings = Settings::default();
-        }
+        },
     }
     println!("{:?}", &settings);
 
@@ -123,10 +123,10 @@ fn main() -> Result<(), HidError> {
                     audio_ctrl_sender
                         .send(ControlMessage::PublishMuteStatus(is_muted))
                         .unwrap_or(());
-                }
+                },
                 Ok(AudioMessage::SetMuteStatus(new_state)) => {
                     pulse_control.set_muted(new_state);
-                }
+                },
                 Ok(AudioMessage::Terminate) => terminated = true,
                 Err(RecvError) => terminated = true,
             }
@@ -153,7 +153,7 @@ fn main() -> Result<(), HidError> {
                         is_muted = state;
                         transition = false;
                     }
-                }
+                },
                 Ok(ControlMessage::SetColor(mute_state, color)) => {
                     if mute_state {
                         muteme_settings.muted_color = color;
@@ -161,12 +161,12 @@ fn main() -> Result<(), HidError> {
                         muteme_settings.unmuted_color = color;
                     }
                     transition = false;
-                }
+                },
                 Ok(ControlMessage::SetMode(new_mode)) => {
                     muteme_settings.operation_mode = new_mode;
                     is_muted = true;
                     transition = false;
-                }
+                },
                 Ok(ControlMessage::Event(event)) => {
                     let new_state;
                     match event {
@@ -176,26 +176,26 @@ fn main() -> Result<(), HidError> {
                                 OperationMode::PushToTalk => new_state = false,
                                 OperationMode::Toggle => new_state = is_muted,
                             }
-                        }
+                        },
                         DeviceEvent::Release => {
                             println!("Release event");
                             match muteme_settings.operation_mode {
                                 OperationMode::PushToTalk => new_state = true,
                                 OperationMode::Toggle => new_state = !is_muted,
                             }
-                        }
+                        },
                     };
                     if is_muted != new_state {
                         is_muted = new_state;
                         transition = false;
                     }
-                }
-                Ok(ControlMessage::Continue) => {}
+                },
+                Ok(ControlMessage::Continue) => {},
                 Ok(ControlMessage::Terminate) => terminated = true,
                 Err(RecvTimeoutError::Timeout) => {
                     println!("Sending keepalive");
                     transition = false;
-                }
+                },
                 Err(RecvTimeoutError::Disconnected) => terminated = true,
             }
 
@@ -271,7 +271,7 @@ fn main() -> Result<(), HidError> {
                                 .send(ControlMessage::Event(DeviceEvent::Release))
                                 .unwrap_or(());
                         }
-                    }
+                    },
                     Some(_) => {},
                     None => break,
                 }
@@ -319,7 +319,7 @@ fn write_value(device: &HidDevice, value: u8) {
             Ok(i) => {
                 println!("Wrote {} bytes", i);
                 break;
-            }
+            },
             Err(err) => println!("{}", err),
         };
         if attempts > 0 {
@@ -341,7 +341,7 @@ fn read_interrupt(device: &HidDevice) -> Option<u8> {
             Ok(_) => return Some(buf[3]),
             Err(err) => {
                 println!("{}", err);
-            }
+            },
         }
         if attempts > 0 {
             thread::sleep(Duration::from_millis(10));
