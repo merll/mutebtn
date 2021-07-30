@@ -18,11 +18,13 @@ pub enum PulseMuteDevice {
 #[serde(default)]
 pub struct PulseSettings {
     pub mute_device: PulseMuteDevice,
+    pub unmute_device: Option<PulseMuteDevice>,
 }
 impl Default for PulseSettings {
     fn default() -> Self {
         Self {
             mute_device: PulseMuteDevice::All,
+            unmute_device: Some(PulseMuteDevice::All),
         }
     }
 }
@@ -44,7 +46,11 @@ impl PulseControl {
 }
 impl Mute for PulseControl {
     fn is_muted(&mut self) -> bool {
-        match &self.settings.mute_device {
+        let device = match &self.settings.unmute_device {
+            Some(dev) => dev,
+            None => &self.settings.mute_device,
+        };
+        match device {
             PulseMuteDevice::All => {
                 let devices_res = &self.handler.list_devices();
                 match devices_res {
@@ -62,30 +68,26 @@ impl Mute for PulseControl {
                 }
                 true
             },
-            PulseMuteDevice::Default => {
-                match self.handler.get_server_info() {
-                    Ok(server_info) => {
-                        match server_info.default_source_name {
-                            Some(device_name) => {
-                                return match &self.handler.get_device_by_name(&device_name) {
-                                    Ok(dev) => dev.mute,
-                                    Err(_) => {
-                                        println!("Failed to find device with default source name");
-                                        false
-                                    },
-                                };
-                            },
-                            None => {
-                                println!("No default device selected");
+            PulseMuteDevice::Default => match self.handler.get_server_info() {
+                Ok(server_info) => match server_info.default_source_name {
+                    Some(device_name) => {
+                        return match &self.handler.get_device_by_name(&device_name) {
+                            Ok(dev) => dev.mute,
+                            Err(_) => {
+                                println!("Failed to find device with default source name");
                                 false
                             },
-                        }
+                        };
                     },
-                    Err(_) => {
-                        println!("Failed to get server info");
+                    None => {
+                        println!("No default device selected");
                         false
                     },
-                }
+                },
+                Err(_) => {
+                    println!("Failed to get server info");
+                    false
+                },
             },
             PulseMuteDevice::Selected(selected_device_name) => {
                 return match &self.handler.get_device_by_name(&selected_device_name) {
@@ -100,7 +102,16 @@ impl Mute for PulseControl {
     }
 
     fn set_muted(&mut self, muted: bool) -> () {
-        match &self.settings.mute_device {
+        let device;
+        if muted {
+            device = &self.settings.mute_device;
+        } else {
+            device = match &self.settings.unmute_device {
+                Some(dev) => dev,
+                None => &self.settings.mute_device,
+            };
+        }
+        match device {
             PulseMuteDevice::All => {
                 let devices_res = &self.handler.list_devices();
                 match devices_res {
@@ -114,25 +125,23 @@ impl Mute for PulseControl {
                     },
                 }
             },
-            PulseMuteDevice::Default => {
-                match self.handler.get_server_info() {
-                    Ok(server_info) => {
-                        match server_info.default_source_name {
-                            Some(device_name) => {
-                                &self.handler.set_device_mute_by_name(&device_name, muted);
-                            },
-                            None => {
-                                println!("No default device selected");
-                            },
-                        }
+            PulseMuteDevice::Default => match self.handler.get_server_info() {
+                Ok(server_info) => match server_info.default_source_name {
+                    Some(device_name) => {
+                        &self.handler.set_device_mute_by_name(&device_name, muted);
                     },
-                    Err(_) => {
-                        println!("Failed to get server info");
+                    None => {
+                        println!("No default device selected");
                     },
-                }
+                },
+                Err(_) => {
+                    println!("Failed to get server info");
+                },
             },
             PulseMuteDevice::Selected(selected_device_name) => {
-                &self.handler.set_device_mute_by_name(&selected_device_name, muted);
+                &self
+                    .handler
+                    .set_device_mute_by_name(&selected_device_name, muted);
             },
         }
     }
