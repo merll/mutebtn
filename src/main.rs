@@ -54,7 +54,7 @@ impl Settings {
         let config_file = match arg_matches.value_of("config_file") {
             Some(file_name) => Some(file_name),
             None => {
-                if Path::new("mutebtn").is_file() {
+                if Path::new("mutebtn.toml").is_file() {
                     Some("mutebtn.toml")
                 } else if Path::new("/etc/mutebtn").is_file() {
                     Some("/etc/mutebtn.toml")
