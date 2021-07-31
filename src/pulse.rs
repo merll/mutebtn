@@ -12,19 +12,21 @@ pub enum AudioMessage {
 pub enum PulseMuteDevice {
     All,
     Default,
-    Selected(String),
+    Selected,
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PulseSettings {
     pub mute_device: PulseMuteDevice,
     pub unmute_device: Option<PulseMuteDevice>,
+    pub selected_device_name: String,
 }
 impl Default for PulseSettings {
     fn default() -> Self {
         Self {
             mute_device: PulseMuteDevice::All,
             unmute_device: Some(PulseMuteDevice::All),
+            selected_device_name: String::from(""),
         }
     }
 }
@@ -89,8 +91,11 @@ impl Mute for PulseControl {
                     false
                 },
             },
-            PulseMuteDevice::Selected(selected_device_name) => {
-                return match &self.handler.get_device_by_name(&selected_device_name) {
+            PulseMuteDevice::Selected => {
+                return match &self
+                    .handler
+                    .get_device_by_name(&self.settings.selected_device_name)
+                {
                     Ok(dev) => dev.mute,
                     Err(_) => {
                         println!("Failed to find device with selected source name");
@@ -138,10 +143,10 @@ impl Mute for PulseControl {
                     println!("Failed to get server info");
                 },
             },
-            PulseMuteDevice::Selected(selected_device_name) => {
+            PulseMuteDevice::Selected => {
                 &self
                     .handler
-                    .set_device_mute_by_name(&selected_device_name, muted);
+                    .set_device_mute_by_name(&self.settings.selected_device_name, muted);
             },
         }
     }
