@@ -83,7 +83,7 @@ impl Settings {
 
 fn main() -> Result<(), HidError> {
     let app = clap_app!(mutebtn =>
-        (version: "0.1.0")
+        (version: "0.2.0")
         (author: "Matthias Erll <matthias@erll.de>")
         (about: "Connects the MuteMe Button")
         (@arg config_file: -c --config +takes_value
