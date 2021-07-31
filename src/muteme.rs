@@ -34,6 +34,7 @@ impl Color {
 pub enum OperationMode {
     Toggle,
     PushToTalk,
+    Hybrid,
 }
 #[derive(Debug)]
 pub enum DeviceEvent {
@@ -62,6 +63,8 @@ pub struct MuteMeSettings {
     pub muted_color: Color,
     pub unmuted_color: Color,
     pub operation_mode: OperationMode,
+    pub double_tap_duration_1: u16,
+    pub double_tap_duration_2: u16,
 }
 impl Default for MuteMeSettings {
     fn default() -> Self {
@@ -69,6 +72,8 @@ impl Default for MuteMeSettings {
             muted_color: Color::Red,
             unmuted_color: Color::Green,
             operation_mode: OperationMode::Toggle,
+            double_tap_duration_1: 300,
+            double_tap_duration_2: 250,
         }
     }
 }

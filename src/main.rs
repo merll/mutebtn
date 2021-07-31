@@ -11,7 +11,11 @@ use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,
 };
-use std::{path::Path, thread, time::Duration};
+use std::{
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 
 use crate::muteme::{
     ControlMessage, DeviceEvent, ExecMessage, IntMessage, MuteMeSettings, OperationMode,
@@ -149,6 +153,12 @@ fn main() -> Result<(), HidError> {
             .send(AudioMessage::GetMuteStatus)
             .unwrap_or(());
 
+        let mut last_touch: Option<Instant> = None;
+        let mut second_touch = false;
+        let double_tap_duration_1 =
+            Duration::from_millis(muteme_settings.double_tap_duration_1.into());
+        let double_tap_duration_2 =
+            Duration::from_millis(muteme_settings.double_tap_duration_2.into());
         while !terminated {
             let res = ctrl_receiver.recv_timeout(Duration::from_secs(5));
             match res {
@@ -179,6 +189,27 @@ fn main() -> Result<(), HidError> {
                             match muteme_settings.operation_mode {
                                 OperationMode::PushToTalk => new_state = false,
                                 OperationMode::Toggle => new_state = is_muted,
+                                OperationMode::Hybrid => {
+                                    if is_muted {
+                                        new_state = false;
+                                    } else {
+                                        new_state = is_muted;
+                                    }
+                                    match last_touch {
+                                        Some(t) => {
+                                            let duration = Instant::now().duration_since(t);
+                                            println!(
+                                                "Intitial - Duration since last touch: {:?}",
+                                                duration
+                                            );
+                                            second_touch = duration < double_tap_duration_1;
+                                        },
+                                        None => {
+                                            second_touch = false;
+                                        },
+                                    }
+                                    last_touch = Some(Instant::now());
+                                },
                             }
                         },
                         DeviceEvent::Release => {
@@ -186,6 +217,27 @@ fn main() -> Result<(), HidError> {
                             match muteme_settings.operation_mode {
                                 OperationMode::PushToTalk => new_state = true,
                                 OperationMode::Toggle => new_state = !is_muted,
+                                OperationMode::Hybrid => {
+                                    if second_touch {
+                                        match last_touch {
+                                            Some(t) => {
+                                                let duration = Instant::now().duration_since(t);
+                                                println!("Release on 2nd touch - Duration since last touch: {:?}", duration);
+                                                if duration < double_tap_duration_2 {
+                                                    new_state = false;
+                                                } else {
+                                                    new_state = true;
+                                                    second_touch = false;
+                                                }
+                                            },
+                                            None => {
+                                                new_state = true;
+                                            },
+                                        }
+                                    } else {
+                                        new_state = true;
+                                    }
+                                },
                             }
                         },
                     };
