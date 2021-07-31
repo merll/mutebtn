@@ -60,7 +60,7 @@ impl Settings {
             None => {
                 if Path::new("mutebtn.toml").is_file() {
                     Some("mutebtn.toml")
-                } else if Path::new("/etc/mutebtn").is_file() {
+                } else if Path::new("/etc/mutebtn.toml").is_file() {
                     Some("/etc/mutebtn.toml")
                 } else {
                     None
